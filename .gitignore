@@ -46,6 +46,3 @@ runs/
 
 # Keep placeholders
 !data/.gitkeep
-!checkpoints/.gitkeep
-!outputs/.gitkeep
-!logs/.gitkeep
