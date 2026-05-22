@@ -1,15 +1,20 @@
 # PC_AE_Video_DDPM
 
-Controlled synthetic shape-transformation latent video diffusion for point
-clouds.
+Controlled synthetic shape-transformation latent video diffusion for point clouds.
 
-Self-contained pipeline driven by a single script,
-[`DDPM_Video__PCAE.py`](DDPM_Video__PCAE.py), that trains a PointCloud
-autoencoder, encodes point clouds into compact latent grids, builds latent
-videos (either by linear interpolation or by controlled synthetic
-deformation), trains endpoint-conditioned and control-conditioned latent
-video DDPMs, samples latent trajectories, and decodes them back into
-point-cloud video frames.
+This repository contains a self-contained pipeline, centered on
+[`DDPM_Video__PCAE.py`](DDPM_Video__PCAE.py), for training a PointCloud
+Autoencoder, compressing point clouds into compact latent grids, constructing
+synthetic latent video trajectories, training latent video DDPMs, and decoding
+sampled latent trajectories back into point-cloud video frames.
+
+The project supports two related generation regimes:
+
+1. **Endpoint-conditioned latent video diffusion**: learns to generate middle
+   latent frames between a start and end point-cloud shape.
+2. **Endpoint + control-conditioned latent video diffusion**: learns to generate
+   middle latent frames conditioned on start/end shapes plus a 16-dimensional
+   synthetic deformation control vector.
 
 <p align="center">
   <img src="ae_reconstruction_best.png" width="720"
@@ -34,140 +39,398 @@ point-cloud video frames.
   decoder applied to a sampled latent grid.</em>
 </p>
 
-## 1. What this project does
+---
 
-- Trains a PointCloud autoencoder on normalized point clouds.
-- Encodes every point cloud into a `[latent_size, latent_size]` latent grid.
-- Builds two flavors of synthetic latent video datasets:
-  - linear interpolation between AE-latent endpoints (endpoint conditioning);
-  - controlled synthetic shape transformations, with a 16-d control vector.
-- Trains an endpoint-conditioned latent video DDPM.
-- Trains a control-conditioned latent video DDPM.
-- Samples latent video trajectories and decodes each frame through the
-  frozen AE into a point cloud.
-- Writes preview images, gif animations, optional mp4s, and a markdown audit
-  report.
+## Table of contents
+
+1. [Project summary](#1-project-summary)
+2. [Input data](#2-input-data)
+3. [Repository structure](#3-repository-structure)
+4. [Model architecture](#4-model-architecture)
+5. [Controlled deformation modes](#5-controlled-deformation-modes)
+6. [Control vector schema](#6-control-vector-schema)
+7. [CLI commands](#7-cli-commands)
+8. [Canonical workflow](#8-canonical-workflow)
+9. [Outputs and checkpoints](#9-outputs-and-checkpoints)
+10. [Validation checklist](#10-validation-checklist)
+11. [Monitoring](#11-monitoring)
+12. [Scientific limitations](#12-scientific-limitations)
+13. [Recommended next experiments](#13-recommended-next-experiments)
+14. [Reproducibility](#14-reproducibility)
+15. [Files outside the main pipeline](#15-files-outside-the-main-pipeline)
+16. [License](#license)
+
+---
+
+## 1. Project summary
+
+This project trains and evaluates a controlled synthetic shape-transformation
+latent video DDPM for point clouds.
+
+The pipeline:
+
+- trains a PointCloud Autoencoder on normalized point clouds;
+- encodes every point cloud into a `[latent_size, latent_size]` latent grid;
+- builds synthetic latent video datasets using either:
+  - linear interpolation between AE-latent endpoints; or
+  - controlled synthetic geometric deformations encoded through the frozen AE;
+- trains an endpoint-conditioned latent video DDPM;
+- trains a control-conditioned latent video DDPM;
+- samples latent video trajectories;
+- decodes each generated latent frame back into a point cloud;
+- writes point-cloud frames, preview images, GIF animations, optional MP4s, and
+  audit reports.
+
+The core design is intentionally staged:
+
+```text
+Point clouds
+  → PointCloudAE training
+  → frozen AE encoder
+  → latent grids
+  → synthetic latent videos
+  → latent video DDPM training
+  → sampled latent trajectories
+  → frozen AE decoder
+  → point-cloud video frames
+```
+
+The AE and DDPM are trained separately. The AE learns the shape representation;
+the DDPM learns a latent video prior over shape transitions.
+
+---
 
 ## 2. Input data
 
-- Path: `data/normalized_rotated_point_clouds6.npy`
-- Expected shape: `(N, 1000, 6)` – 1000 points per sample, 6 features
-  (xyz + normal/feature triple).
-- Current shape on disk: `(11892, 1000, 6)`, `float64`.
+Primary data path:
 
-## 3. Main script
+```text
+data/normalized_rotated_point_clouds6.npy
+```
 
-- [`DDPM_Video__PCAE.py`](DDPM_Video__PCAE.py)
+Expected shape:
 
-Helper scripts (auditing/visualization, optional):
+```text
+(N, 1000, 6)
+```
 
-- [`evaluate_pilot_samples.py`](evaluate_pilot_samples.py) – computes
-  per-sample statistics (frame-to-frame L2, endpoint L2, finiteness, asset
-  presence) and writes a `pilot_sample_eval.json` next to the samples.
-- [`make_pointcloud_video_previews.py`](make_pointcloud_video_previews.py) –
-  rebuilds per-sample animation gifs and mp4s from decoded `frame_*.npy`.
+Current known dataset shape:
 
-## 4. Core model stages
+```text
+(11892, 1000, 6)
+```
 
-### Stage 1 – PointCloudAE
-- Input: point cloud `[1000, 6]`.
-- Encoder maps the cloud to a latent grid `[latent_size, latent_size]`,
-  typically `[32, 32]`.
-- Decoder reconstructs `[1000, 6]`.
-- Trained independently of the DDPM.
+Each point cloud contains 1000 points. Each point has six features:
 
-### Stage 2 – Latent encoding
-- The frozen AE encodes every point cloud into a latent grid.
-- Example output: `outputs/latent_videos_full_32/encoded_features.npy`.
+```text
+[x, y, z, feature_3, feature_4, feature_5]
+```
 
-### Stage 3 – Linear endpoint latent videos
-- Builds simple linear-interpolation videos between two latent endpoints.
-- Used as the first endpoint-conditioned DDPM baseline (no controls).
+In the current workflow, the last three channels are treated as normal-like or
+auxiliary geometric features.
 
-### Stage 4 – Controlled synthetic shape-transformation videos
-- Applies synthetic geometric deformations directly to point clouds.
-- Encodes every transformed frame through the frozen AE.
-- Saves latent video tensors plus a 16-d control vector per sequence and a
-  mode-label array.
+Large data files are intentionally excluded from Git. Keep them local or store
+them in Git LFS, Hugging Face Datasets, an object store, or another external
+artifact system.
 
-### Stage 5 – Endpoint-conditioned latent video DDPM
-- 3D U-Net learns to generate middle latent frames given the start and end
-  latent frames as context.
+---
 
-### Stage 6 – Control-conditioned latent video DDPM
-- Same architecture, additionally conditioned on the control vector (and
-  the integer mode id via the control vector).
+## 3. Repository structure
 
-### Stage 7 – Sampling and decoding
-- Generated latent frames are decoded through the AE decoder into
-  point-cloud frames.
-- Per sample, the pipeline writes `frame_000.npy ... frame_009.npy`,
-  `latent_video.npz`, `preview.png`, `animation.gif`, and (for controlled
-  sampling) `control_vector.npy` and `control_config.json`.
+Main script:
+
+```text
+DDPM_Video__PCAE.py
+```
+
+Optional helper scripts:
+
+```text
+evaluate_pilot_samples.py
+make_pointcloud_video_previews.py
+```
+
+Expected local artifact directories:
+
+```text
+data/
+checkpoints/
+outputs/
+logs/
+```
+
+These directories are typically ignored by Git except for placeholders.
+
+### Important files
+
+| File | Purpose |
+| --- | --- |
+| `DDPM_Video__PCAE.py` | Main training, dataset-building, sampling, and audit script |
+| `README.md` | Project documentation |
+| `LICENSE` | License file |
+| `evaluate_pilot_samples.py` | Computes sanity metrics for sampled pilot videos |
+| `make_pointcloud_video_previews.py` | Rebuilds GIF/MP4 previews from decoded frame `.npy` files |
+| `data/.gitkeep` | Placeholder for local data directory |
+
+---
+
+## 4. Model architecture
+
+### Stage 1 — PointCloudAE
+
+The PointCloudAE compresses individual point clouds into compact latent grids.
+
+Input:
+
+```text
+[1000, 6]
+```
+
+Latent representation:
+
+```text
+[latent_size, latent_size]
+```
+
+Typical latent size:
+
+```text
+[32, 32]
+```
+
+Output reconstruction:
+
+```text
+[1000, 6]
+```
+
+The AE is trained independently of the DDPM. This is the first-stage latent
+representation model.
+
+### Stage 2 — Latent encoding
+
+After AE training, the frozen encoder maps every point cloud into a latent grid.
+
+Example output:
+
+```text
+outputs/latent_videos_full_32/encoded_features.npy
+```
+
+Expected encoded feature shape:
+
+```text
+(N, 32, 32)
+```
+
+### Stage 3 — Linear endpoint latent videos
+
+The simplest video dataset is built by interpolating between two encoded
+point-cloud latents:
+
+```text
+z_start → z_1 → z_2 → ... → z_end
+```
+
+This creates endpoint-conditioned training data for a baseline latent video DDPM.
+
+### Stage 4 — Controlled synthetic shape-transformation videos
+
+Controlled videos are built in point-cloud space first, then encoded into latent
+space.
+
+For each source point cloud:
+
+1. sample a deformation mode;
+2. sample deformation parameters;
+3. generate a sequence of transformed point-cloud frames;
+4. encode each transformed frame through the frozen AE;
+5. save the resulting latent video tensor;
+6. save the 16-dimensional control vector;
+7. save the deformation-mode label.
+
+Expected controlled latent video shape:
+
+```text
+(num_sequences, num_frames, latent_size, latent_size)
+```
+
+Expected control tensor shape:
+
+```text
+(num_sequences, 16)
+```
+
+### Stage 5 — Endpoint-conditioned latent video DDPM
+
+The endpoint-conditioned model learns to denoise/generate middle latent frames
+given the start and end latent frames.
+
+Training target:
+
+```text
+middle latent frames
+```
+
+Conditioning:
+
+```text
+z_start, z_end
+```
+
+Practical description:
+
+```text
+Given shape A and shape B, generate a plausible latent video trajectory between them.
+```
+
+### Stage 6 — Control-conditioned latent video DDPM
+
+The control-conditioned model extends the endpoint-conditioned DDPM by adding a
+control vector.
+
+Training target:
+
+```text
+middle latent frames
+```
+
+Conditioning:
+
+```text
+z_start, z_end, control_vector
+```
+
+The control vector is embedded with an MLP and added to the diffusion timestep
+embedding.
+
+Practical description:
+
+```text
+Given shape A, shape B, and a requested synthetic deformation, generate the latent video trajectory.
+```
+
+### Stage 7 — Sampling and decoding
+
+At sampling time, the DDPM generates latent middle frames. The final latent video
+is then decoded frame-by-frame through the frozen AE decoder.
+
+Each sample directory contains:
+
+```text
+frame_000.npy
+frame_001.npy
+...
+frame_009.npy
+latent_video.npz
+preview.png
+animation.gif
+```
+
+For controlled sampling, it also contains:
+
+```text
+control_vector.npy
+control_config.json
+```
+
+---
 
 ## 5. Controlled deformation modes
 
-Implemented in `_generate_transformation_frames` and parameterized by
-`_sample_params_for_mode`:
+The controlled dataset builder supports seven synthetic deformation modes.
 
-- **cavity_expansion** – radial outward push of a spherical shell of points
-  around a center, ramped from 0 to a max strength across frames.
-- **cavity_contraction** – inverse cavity_expansion: radial inward pull.
-- **anisotropic_expansion** – directional stretch along an axis, ramped
-  monotonically.
-- **twist** – rotation of points around an axis with rotation angle ramped
-  across frames; can also be combined with a shear depending on params.
-- **hybrid_cavity_twist** – cavity displacement and twist applied jointly.
-- **bulge_then_relax** – cavity strength follows a smooth ramp up and then
-  back down (uses `_alpha_bulge`), producing a transient bulge.
-- **two_stage_morph** – two-stage trajectory: cavity ramps over the first
-  half of frames, then twist ramps over the second half.
+### `cavity_expansion`
 
-## 6. Control vector schema (16-d)
+Radially pushes a shell of points outward from a sampled center. The strength
+ramps smoothly across frames.
 
-| idx | name                           |
-| --- | ------------------------------ |
-| 0   | mode_id (normalized)           |
-| 1   | cavity_radius                  |
-| 2   | shell_width                    |
-| 3   | max_strength                   |
-| 4   | twist_strength                 |
-| 5   | anisotropy_strength            |
-| 6   | center_x                       |
-| 7   | center_y                       |
-| 8   | center_z                       |
-| 9   | axis_x                         |
-| 10  | axis_y                         |
-| 11  | axis_z                         |
-| 12  | num_frames (normalized)        |
-| 13  | latent_size (normalized)       |
-| 14  | phase_or_relaxation_strength   |
-| 15  | composite_strength / reserved  |
+### `cavity_contraction`
+
+The inverse of cavity expansion. Points in the selected shell are pulled inward.
+
+### `anisotropic_expansion`
+
+Applies directionally biased expansion along a sampled axis. This creates
+lopsided or axis-sensitive shape motion.
+
+### `twist`
+
+Rotates points around a sampled axis. Rotation strength increases across frames.
+
+### `hybrid_cavity_twist`
+
+Combines cavity displacement with twist. This creates richer compound motion
+than simple interpolation.
+
+### `bulge_then_relax`
+
+Applies a transient deformation that grows and then relaxes. The motion is
+non-monotonic, producing a bulge-like trajectory.
+
+### `two_stage_morph`
+
+Applies a staged transformation: cavity deformation over the first part of the
+sequence, followed by twist over the second part.
+
+---
+
+## 6. Control vector schema
+
+The control-conditioned DDPM uses a fixed 16-dimensional control vector.
+
+| idx | name | Description |
+| --- | --- | --- |
+| 0 | `mode_id` | Deformation mode ID normalized to `[0, 1]` |
+| 1 | `cavity_radius` | Radius of the affected shell |
+| 2 | `shell_width` | Width of the radial shell mask |
+| 3 | `max_strength` | Main deformation strength |
+| 4 | `twist_strength` | Twist angle or twist amplitude |
+| 5 | `anisotropy_strength` | Directional expansion strength |
+| 6 | `center_x` | Deformation center x-coordinate |
+| 7 | `center_y` | Deformation center y-coordinate |
+| 8 | `center_z` | Deformation center z-coordinate |
+| 9 | `axis_x` | Deformation axis x-component |
+| 10 | `axis_y` | Deformation axis y-component |
+| 11 | `axis_z` | Deformation axis z-component |
+| 12 | `num_frames` | Number of frames, normalized |
+| 13 | `latent_size` | Latent grid size, normalized |
+| 14 | `phase_or_relaxation_strength` | Used by non-monotonic modes |
+| 15 | `composite_strength` | Reserved or compound-mode strength |
+
+---
 
 ## 7. CLI commands
 
-Listed by the top-level `--help`:
+The main script exposes these commands:
 
-- `train_ae` – train the PointCloudAE.
-- `encode_dataset` – encode all point clouds into AE latent grids.
-- `build_latent_videos` – build a linear-interpolation latent video dataset.
-- `train_video_ddpm` – train the endpoint-conditioned latent video DDPM.
-- `sample_video` – sample one endpoint-conditioned latent video and decode
-  each frame.
-- `build_controlled_shape_videos` – build the controlled synthetic shape
-  transformation latent video dataset.
-- `train_controlled_video_ddpm` – train the control-conditioned latent
-  video DDPM.
-- `sample_controlled_video` – sample one controlled latent video and decode
-  each frame.
-- `audit_controlled_videos` – write a markdown audit report for a controlled
-  run.
-- `run_all` – convenience wrapper running AE → encode → build → train DDPM
-  → sample once.
+| Command | Purpose |
+| --- | --- |
+| `train_ae` | Train the PointCloudAE |
+| `encode_dataset` | Encode all point clouds into AE latent grids |
+| `build_latent_videos` | Build linear endpoint-interpolation latent videos |
+| `train_video_ddpm` | Train endpoint-conditioned latent video DDPM |
+| `sample_video` | Sample one endpoint-conditioned latent video |
+| `build_controlled_shape_videos` | Build controlled synthetic latent video dataset |
+| `train_controlled_video_ddpm` | Train control-conditioned latent video DDPM |
+| `sample_controlled_video` | Sample one controlled latent video |
+| `audit_controlled_videos` | Write markdown audit report for controlled run |
+| `run_all` | Convenience wrapper for the older endpoint-conditioned pipeline |
 
-## 8. Example workflow (full 32-latent run)
+Check command availability with:
 
-### Train the AE
+```bash
+python3 DDPM_Video__PCAE.py --help
+```
+
+---
+
+## 8. Canonical workflow
+
+The following commands define the recommended full 32-latent workflow.
+
+### 8.1 Train the full PointCloudAE
+
 ```bash
 python3 DDPM_Video__PCAE.py --seed 123 train_ae \
   --pointcloud_path data/normalized_rotated_point_clouds6.npy \
@@ -180,7 +443,18 @@ python3 DDPM_Video__PCAE.py --seed 123 train_ae \
   --val_split 0.1
 ```
 
-### Encode the dataset
+Expected outputs:
+
+```text
+checkpoints/ae_video_pcae_full_32/ae_latest.pth
+checkpoints/ae_video_pcae_full_32/ae_best.pth
+checkpoints/ae_video_pcae_full_32/ae_final.pth
+checkpoints/ae_video_pcae_full_32/ae_meta.json
+checkpoints/ae_video_pcae_full_32/ae_epoch_losses.txt
+```
+
+### 8.2 Encode the full dataset
+
 ```bash
 python3 DDPM_Video__PCAE.py --seed 123 encode_dataset \
   --pointcloud_path data/normalized_rotated_point_clouds6.npy \
@@ -189,7 +463,14 @@ python3 DDPM_Video__PCAE.py --seed 123 encode_dataset \
   --encode_batch_size 64
 ```
 
-### Build controlled synthetic shape videos
+Expected output shape:
+
+```text
+(11892, 32, 32)
+```
+
+### 8.3 Build controlled synthetic latent videos
+
 ```bash
 python3 DDPM_Video__PCAE.py --seed 123 build_controlled_shape_videos \
   --pointcloud_path data/normalized_rotated_point_clouds6.npy \
@@ -206,7 +487,25 @@ python3 DDPM_Video__PCAE.py --seed 123 build_controlled_shape_videos \
   --use_best_ae
 ```
 
-### Train the controlled DDPM
+Expected outputs:
+
+```text
+outputs/controlled_latent_videos_full_32/controlled_shape_videos_50k.npy
+outputs/controlled_latent_videos_full_32/controlled_shape_controls_50k.npy
+outputs/controlled_latent_videos_full_32/controlled_shape_videos_50k.labels.npy
+outputs/controlled_latent_videos_full_32/controlled_shape_videos_50k.meta.json
+```
+
+Expected shapes:
+
+```text
+controlled_shape_videos_50k.npy:   (50000, 10, 32, 32)
+controlled_shape_controls_50k.npy: (50000, 16)
+labels:                            (50000,)
+```
+
+### 8.4 Train the controlled DDPM
+
 ```bash
 python3 DDPM_Video__PCAE.py --seed 123 train_controlled_video_ddpm \
   --latent_video_path outputs/controlled_latent_videos_full_32/controlled_shape_videos_50k.npy \
@@ -223,10 +522,14 @@ python3 DDPM_Video__PCAE.py --seed 123 train_controlled_video_ddpm \
   --val_split 0.1
 ```
 
-> The CLI command name is exactly `train_controlled_video_ddpm` (all
-> lowercase `ddpm`).
+The command name is exactly:
 
-### Sample one controlled video
+```text
+train_controlled_video_ddpm
+```
+
+### 8.5 Sample one controlled video
+
 ```bash
 python3 DDPM_Video__PCAE.py --seed 123 sample_controlled_video \
   --encoded_features outputs/latent_videos_full_32/encoded_features.npy \
@@ -244,7 +547,8 @@ python3 DDPM_Video__PCAE.py --seed 123 sample_controlled_video \
   --max_strength 0.10
 ```
 
-### Audit a controlled run
+### 8.6 Audit a controlled run
+
 ```bash
 python3 DDPM_Video__PCAE.py audit_controlled_videos \
   --sample_dir outputs/controlled_samples_full_32_50k \
@@ -255,123 +559,233 @@ python3 DDPM_Video__PCAE.py audit_controlled_videos \
   --output_report outputs/controlled_samples_full_32_50k/audit_report.md
 ```
 
-## 9. Outputs and checkpoint layout
+---
 
-Checkpoint directories used by the canonical workflow:
+## 9. Outputs and checkpoints
 
-- `checkpoints/ae_video_pcae_full_32/`
-  - `ae_best.pth`, `ae_final.pth`, `ae_latest.pth`,
-    `ae_meta.json`, `ae_epoch_losses.txt`, `epoch_viz/ae_epoch_XXXX.png`.
-- `checkpoints/controlled_video_ddpm_full_32_50k/`
-  - `controlled_video_ddpm_best.pt`,
-    `controlled_video_ddpm_final.pt`,
-    `controlled_video_ddpm_latest.pt`,
-    `controlled_video_ddpm_meta.json`,
-    `controlled_video_ddpm_epoch_losses.txt`.
+### AE checkpoints
 
-Output directories used by the canonical workflow:
+```text
+checkpoints/ae_video_pcae_full_32/
+  ae_best.pth
+  ae_final.pth
+  ae_latest.pth
+  ae_meta.json
+  ae_epoch_losses.txt
+  epoch_viz/
+```
 
-- `outputs/latent_videos_full_32/` – `encoded_features.npy` and any
-  endpoint-DDPM build artifacts.
-- `outputs/controlled_latent_videos_full_32/` –
-  `controlled_shape_videos_50k.npy`,
-  `controlled_shape_controls_50k.npy`,
-  `controlled_shape_videos_50k.labels.npy`,
-  `controlled_shape_videos_50k.meta.json`.
-- `outputs/controlled_samples_full_32_50k/sample_XXXX/` – `frame_000.npy
-  ... frame_009.npy`, `latent_video.npz`, `preview.png`, `animation.gif`,
-  `control_vector.npy`, `control_config.json`, and (after audit)
-  `audit_report.md`.
+### Endpoint-conditioned DDPM checkpoints
 
-The repo also retains the pilot/smoke artifacts that informed the full
-workflow:
+```text
+checkpoints/video_ddpm_pcae_pilot_32_10k/
+  video_ddpm_best.pt
+  video_ddpm_final.pt
+  video_ddpm_latest.pt
+  video_ddpm_meta.json
+  video_ddpm_epoch_losses.txt
+```
 
-- `checkpoints/ae_video_pcae_pilot_32/`, `checkpoints/video_ddpm_pcae_pilot_32_10k/`
-- `checkpoints/controlled_video_ddpm_smoke_32/`
-- `outputs/latent_videos_pilot_32/`, `outputs/video_samples_pilot_32_10k/`
-- `outputs/controlled_latent_videos_32/`, `outputs/controlled_samples_smoke_32/`
+### Controlled DDPM checkpoints
 
-## 10. Validation – what to check
+```text
+checkpoints/controlled_video_ddpm_full_32_50k/
+  controlled_video_ddpm_best.pt
+  controlled_video_ddpm_final.pt
+  controlled_video_ddpm_latest.pt
+  controlled_video_ddpm_meta.json
+  controlled_video_ddpm_epoch_losses.txt
+```
+
+### Encoded features
+
+```text
+outputs/latent_videos_full_32/encoded_features.npy
+outputs/latent_videos_pilot_32/encoded_features.npy
+```
+
+### Latent videos
+
+```text
+outputs/latent_videos_pilot_32/latent_interpolation_videos_10k.npy
+outputs/controlled_latent_videos_full_32/controlled_shape_videos_50k.npy
+```
+
+### Controlled sample outputs
+
+```text
+outputs/controlled_samples_full_32_50k/sample_0000/
+  frame_000.npy
+  frame_001.npy
+  ...
+  frame_009.npy
+  latent_video.npz
+  control_vector.npy
+  control_config.json
+  preview.png
+  animation.gif
+```
+
+### Pilot and smoke artifacts
+
+The repo may retain local pilot/smoke artifacts that informed the full workflow:
+
+```text
+checkpoints/ae_video_pcae_pilot_32/
+checkpoints/video_ddpm_pcae_pilot_32_10k/
+checkpoints/controlled_video_ddpm_smoke_32/
+outputs/latent_videos_pilot_32/
+outputs/video_samples_pilot_32_10k/
+outputs/controlled_latent_videos_32/
+outputs/controlled_samples_smoke_32/
+```
+
+These artifacts are useful locally but are generally excluded from Git.
+
+---
+
+## 10. Validation checklist
 
 For each run, verify:
 
-- Tensor shapes match expectations (encoded features `(N, L, L)`; videos
-  `(N, T, L, L)`; controls `(N, 16)`; samples `(P, 6)`).
-- Values are finite (`np.isfinite(...).all()`).
-- Frame count equals `--num_frames`.
-- `preview.png` and `animation.gif` exist and are non-empty.
-- Train/validation losses in `*_epoch_losses.txt` are decreasing and
-  bounded.
-- For controlled runs, `audit_controlled_videos` writes a report with
-  per-sample statistics and asset checks.
+- encoded features have shape `(N, latent_size, latent_size)`;
+- latent videos have shape `(N, T, latent_size, latent_size)`;
+- control vectors have shape `(N, 16)`;
+- decoded frames have shape `(1000, 6)`;
+- all arrays are finite;
+- `preview.png` exists;
+- `animation.gif` exists;
+- `*_epoch_losses.txt` shows bounded train/validation losses;
+- `*_meta.json` exists and matches the command configuration;
+- audit report exists for controlled runs.
+
+Quick checks:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+import numpy as np
+
+paths = [
+    "outputs/latent_videos_full_32/encoded_features.npy",
+    "outputs/controlled_latent_videos_full_32/controlled_shape_videos_50k.npy",
+    "outputs/controlled_latent_videos_full_32/controlled_shape_controls_50k.npy",
+]
+
+for p in paths:
+    p = Path(p)
+    if p.exists():
+        x = np.load(p, mmap_mode="r")
+        print(p, x.shape, x.dtype)
+
+print("done")
+PY
+```
+
+---
 
 ## 11. Monitoring
 
+### GPU status
+
 ```bash
 watch -n 10 'nvidia-smi'
+```
+
+### AE training
+
+```bash
 tail -f logs/ae_full_32.log
-tail -f logs/controlled_video_ddpm_full_32_50k.log
 tail -n 20 checkpoints/ae_video_pcae_full_32/ae_epoch_losses.txt
+```
+
+### Controlled DDPM training
+
+```bash
+tail -f logs/controlled_video_ddpm_full_32_50k.log
 tail -n 20 checkpoints/controlled_video_ddpm_full_32_50k/controlled_video_ddpm_epoch_losses.txt
 ```
 
-The repo ships with the pilot-era logs under `logs/` (`ae_full_32.log`,
-`ae_resume.log`, `build_videos.log`, `encode.log`, `video_ddpm.log`,
-`video_ddpm_resume.log`, `video_ddpm_resume_to40.log`). The
-`controlled_video_ddpm_full_32_50k.log` filename is the recommended target
-for the full controlled DDPM run; it will be written by `nohup ... &` or
-`tee` at run time and is not present yet.
+### Combined monitor
+
+```bash
+watch -n 10 '
+echo "=== GPU ==="
+nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu,temperature.gpu,power.draw --format=csv
+echo
+echo "=== PROCESS ==="
+ps -ef | grep "DDPM_Video__PCAE.py" | grep -v grep || echo "no process"
+echo
+echo "=== AE LOSSES ==="
+tail -n 5 checkpoints/ae_video_pcae_full_32/ae_epoch_losses.txt 2>/dev/null || echo "no AE loss file"
+echo
+echo "=== CONTROLLED DDPM LOSSES ==="
+tail -n 5 checkpoints/controlled_video_ddpm_full_32_50k/controlled_video_ddpm_epoch_losses.txt 2>/dev/null || echo "no controlled DDPM loss file"
+'
+```
+
+---
 
 ## 12. Scientific limitations
 
-- This is a controlled synthetic shape-transformation model. Deformations
-  are synthetic; they are not ground-truth physical trajectories.
-- The model should not be presented as physically realistic or
-  state-of-the-art without external validation against measured data.
-- Generation quality is bounded by AE reconstruction quality. If the AE
-  cannot reconstruct a microstructure cleanly, the DDPM cannot either.
-- Endpoint and control conditioning can be ambiguous for multi-stage
-  transformations (e.g., `bulge_then_relax`, `two_stage_morph`): two
-  qualitatively different trajectories can share the same endpoint pair.
-- Linear latent interpolation and controlled synthetic deformation are
-  generation scaffolds, not real observed temporal dynamics. They are
-  useful for learning a smooth latent video manifold, not for forecasting.
+- This is a controlled synthetic shape-transformation model.
+- Deformations are synthetic; they are not measured physical trajectories.
+- Do not claim physical realism without external validation.
+- Do not claim state-of-the-art performance without controlled comparison.
+- Model quality is bounded by AE reconstruction quality.
+- Endpoint/control conditioning can be ambiguous for multi-stage transformations.
+- Linear interpolation and synthetic deformation are useful generation scaffolds,
+  not real observed temporal dynamics.
+- Generated point-cloud videos should be treated as synthetic samples, not
+  forecasts.
+
+---
 
 ## 13. Recommended next experiments
 
-- Train a `latent_size = 64` AE and compare reconstruction and downstream
-  DDPM quality against `latent_size = 32`.
-- Compare the endpoint-only DDPM (`train_video_ddpm`) head-to-head with the
-  control-conditioned DDPM (`train_controlled_video_ddpm`) on identical
-  endpoints, to isolate the contribution of the control vector.
+- Train a `latent_size = 64` AE and compare reconstruction and downstream DDPM
+  quality against `latent_size = 32`.
+- Compare endpoint-only DDPM against control-conditioned DDPM on identical
+  endpoint pairs.
 - Scale controlled trajectories to 100k if disk and wallclock allow.
-- Add an explicit mode embedding or class-conditioning input instead of
-  packing `mode_id` into channel 0 of the control vector.
-- Improve the AE with Chamfer / EMD / F-score reconstruction metrics in
-  addition to the current loss.
-- Explore tokenized latent point diffusion (per-point latents instead of a
-  spatial grid) as a follow-up architecture.
+- Add explicit mode embeddings or class conditioning instead of using only a
+  normalized mode ID in the control vector.
+- Add Chamfer / EMD / F-score reconstruction metrics.
+- Add quantitative trajectory metrics for generated videos.
+- Explore tokenized latent point diffusion as a follow-up architecture.
+
+---
 
 ## 14. Reproducibility
 
-- Pass `--seed 123` to every command in the canonical workflow.
-- Targeted hardware is a single CUDA GPU. The script falls back to CPU but
-  will be far too slow for the full configuration.
-- Large artifacts (checkpoints, encoded features, latent video tensors,
-  decoded samples) are intentionally local. They are not suitable for
-  vanilla GitHub – use git-lfs, a separate object store, or just keep them
-  out of source control.
+- Use `--seed 123` for the canonical workflow.
+- Target hardware is a single CUDA GPU.
+- CPU fallback exists but is not practical for full training.
+- Large artifacts are intentionally local and should not be committed to normal
+  Git.
+- Use Git LFS, Hugging Face, object storage, or a release artifact if large
+  datasets/checkpoints need to be shared.
+
+---
 
 ## 15. Files outside the main pipeline
 
-`cleanup_archive/` holds files that were in the original working repo but
-are not part of this pipeline (the old Kinetics video DDPM stack under
-`models/`, `diffusion/`, `utils/`, `metrics/`, `configs/`, `runs/`,
-`scripts/`, the old `DDPM_PCAE (1).py`, the old `data/PointCloud_AE.py`
-and related notebooks, and old/unused datasets). Nothing in
-`cleanup_archive/` is imported by `DDPM_Video__PCAE.py`. Inspect it before
-deleting it.
+`cleanup_archive/` may contain files from the original working repo that are not
+part of this cleaned pipeline, such as:
+
+- old Kinetics video DDPM components;
+- old `models/`, `diffusion/`, `utils/`, `metrics/`, `configs/`, `runs/`, and
+  `scripts/` folders;
+- older `DDPM_PCAE` versions;
+- unused point-cloud notebooks;
+- abandoned datasets or old checkpoints.
+
+Nothing in `cleanup_archive/` is imported by `DDPM_Video__PCAE.py`.
+
+Inspect it before deleting it permanently.
+
+---
 
 ## License
 
-[LICENSE](LICENSE)
+See [LICENSE](LICENSE).
