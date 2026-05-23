@@ -1,0 +1,27 @@
+{
+  "mode": "cavity_contraction",
+  "cavity_radius": 0.35,
+  "shell_width": 0.15,
+  "max_strength": -0.08,
+  "twist_strength": 0.5,
+  "anisotropy_strength": 0.1,
+  "center": [
+    -3.423541894420623e-09,
+    -2.458691583662187e-10,
+    -6.8843366562987285e-09
+  ],
+  "axis": [
+    0.0,
+    0.0,
+    1.0
+  ],
+  "phase_or_relaxation_strength": 0.0,
+  "composite_strength": 0.0,
+  "num_frames": 10,
+  "latent_size": 32,
+  "start_index": 111,
+  "end_index": 2222,
+  "sample_id": 12,
+  "ae_ckpt_dir": "checkpoints/ae_video_pcae_full_32",
+  "video_ddpm_ckpt_dir": "checkpoints/controlled_video_ddpm_full_32_50k"
+}

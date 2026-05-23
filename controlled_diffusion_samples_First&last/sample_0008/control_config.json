@@ -1,0 +1,27 @@
+{
+  "mode": "two_stage_morph",
+  "cavity_radius": 0.35,
+  "shell_width": 0.15,
+  "max_strength": 0.1,
+  "twist_strength": 0.5,
+  "anisotropy_strength": 0.1,
+  "center": [
+    1.1622905971009345e-09,
+    -8.791685157660822e-10,
+    1.4096498190951934e-08
+  ],
+  "axis": [
+    0.0,
+    0.0,
+    1.0
+  ],
+  "phase_or_relaxation_strength": 0.0,
+  "composite_strength": 0.2333333333333333,
+  "num_frames": 10,
+  "latent_size": 32,
+  "start_index": 3000,
+  "end_index": 6000,
+  "sample_id": 8,
+  "ae_ckpt_dir": "checkpoints/ae_video_pcae_full_32",
+  "video_ddpm_ckpt_dir": "checkpoints/controlled_video_ddpm_full_32_50k"
+}

@@ -1,0 +1,27 @@
+{
+  "mode": "anisotropic_expansion",
+  "cavity_radius": 0.35,
+  "shell_width": 0.15,
+  "max_strength": 0.16,
+  "twist_strength": 0.5,
+  "anisotropy_strength": 0.16,
+  "center": [
+    3.814697446813398e-09,
+    4.023313682210983e-09,
+    2.5108457535338857e-09
+  ],
+  "axis": [
+    0.0,
+    0.0,
+    1.0
+  ],
+  "phase_or_relaxation_strength": 0.0,
+  "composite_strength": 0.0,
+  "num_frames": 10,
+  "latent_size": 32,
+  "start_index": 7500,
+  "end_index": 10000,
+  "sample_id": 10,
+  "ae_ckpt_dir": "checkpoints/ae_video_pcae_full_32",
+  "video_ddpm_ckpt_dir": "checkpoints/controlled_video_ddpm_full_32_50k"
+}

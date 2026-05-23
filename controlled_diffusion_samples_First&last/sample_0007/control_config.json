@@ -1,0 +1,27 @@
+{
+  "mode": "bulge_then_relax",
+  "cavity_radius": 0.35,
+  "shell_width": 0.15,
+  "max_strength": 0.12,
+  "twist_strength": 0.5,
+  "anisotropy_strength": 0.1,
+  "center": [
+    -1.9133091555545434e-08,
+    4.887581006585151e-09,
+    1.1324882143171067e-09
+  ],
+  "axis": [
+    0.0,
+    0.0,
+    1.0
+  ],
+  "phase_or_relaxation_strength": 1.0,
+  "composite_strength": 0.0,
+  "num_frames": 10,
+  "latent_size": 32,
+  "start_index": 2000,
+  "end_index": 4000,
+  "sample_id": 7,
+  "ae_ckpt_dir": "checkpoints/ae_video_pcae_full_32",
+  "video_ddpm_ckpt_dir": "checkpoints/controlled_video_ddpm_full_32_50k"
+}
