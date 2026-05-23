@@ -28,10 +28,7 @@ The project supports two related generation regimes:
   Bottom: AE reconstructions.</em>
 </p>
 
-<p align="center">
-  <img src="latent_video_sample.gif" width="480"
-       alt="Decoded point-cloud video sampled from the endpoint-conditioned latent video DDPM.">
-</p>
+
 
 <p align="center">
   <em>Decoded point-cloud video from the endpoint-conditioned latent video
