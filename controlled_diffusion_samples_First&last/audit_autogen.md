@@ -1,0 +1,198 @@
+# Controlled latent video DDPM audit report
+
+**Run name**: controlled synthetic shape-transformation latent video DDPM
+
+## Paths
+- sample_dir: `outputs/controlled_samples_full_32_50k`
+- latent_video_path: `outputs/controlled_latent_videos_full_32/controlled_shape_videos_50k.npy`
+- control_path: `outputs/controlled_latent_videos_full_32/controlled_shape_controls_50k.npy`
+- video_ddpm_ckpt_dir: `checkpoints/controlled_video_ddpm_full_32_50k`
+- ae_ckpt_dir: `checkpoints/ae_video_pcae_full_32`
+
+## Hardware
+- cuda_available: True
+- device: NVIDIA GeForce RTX 4070 Laptop GPU
+
+## Latent video dataset
+- shape: (50000, 10, 32, 32)
+- dtype: float32
+- num_sequences: 50000
+- num_frames: 10
+- latent_size: 32
+- control_dim: 16
+- deformation_modes: ['cavity_expansion', 'cavity_contraction', 'anisotropic_expansion', 'twist', 'hybrid_cavity_twist', 'bulge_then_relax', 'two_stage_morph']
+- deformation_mode_probs: [0.22, 0.08, 0.2, 0.15, 0.15, 0.1, 0.1]
+- mode_counts: {'cavity_expansion': 10964, 'cavity_contraction': 3939, 'anisotropic_expansion': 9973, 'twist': 7554, 'hybrid_cavity_twist': 7584, 'bulge_then_relax': 5030, 'two_stage_morph': 4956}
+- latent_stats: {'min': -1.610939621925354, 'max': 4.560150623321533, 'mean': 0.042512163519859314, 'std': 0.4050326943397522}
+- control_stats: {'min': -0.9999996423721313, 'max': 1.1997934579849243, 'mean': 0.10592469573020935, 'std': 0.31843888759613037}
+- finite_videos: True
+- finite_controls: True
+
+## Control vectors
+- shape: (50000, 16)
+- dtype: float32
+- finite: True
+- min/max/mean/std: -1.00000 / 1.19979 / 0.10592 / 0.31844
+
+## DDPM training
+- epoch records: 164
+  - first: epoch=1 train=0.00986615 val=0.00341591
+  - last:  epoch=164 train=0.00108374 val=0.00120642
+- best_val: 0.0007814799708343343
+- best_epoch: 114
+- final_epoch: 164
+- base_channels: 32
+- timesteps: 1000
+- beta_schedule: cosine
+- batch_size: 8
+- epochs: 500
+- patience: 50
+- control_dim: 16
+- train_count: 45000
+- val_count: 5000
+- ckpt `controlled_video_ddpm_latest.pt`: exists=True
+- ckpt `controlled_video_ddpm_best.pt`: exists=True
+- ckpt `controlled_video_ddpm_final.pt`: exists=True
+
+## AE training
+- epoch records: 91
+  - first: epoch=1 train=0.54984214 val=0.40089932
+  - last:  epoch=91 train=0.18575052 val=0.25096437
+- ckpt `ae_latest.pth`: exists=True
+- ckpt `ae_best.pth`: exists=True
+- ckpt `ae_final.pth`: exists=True
+- ckpt `ae_meta.json`: exists=True
+
+## Sample outputs
+- sample count: 14
+  - **sample_0000** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.8950 / 0.9408
+    - normal min/max: -0.8125 / 0.8370
+    - normal norm mean/std: 0.5481 / 0.0926
+    - frame-to-frame mean L2 disp: 0.02548
+    - endpoint disp: 0.21368
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0000/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0000/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0000/control_config.json` (exists: True)
+  - **sample_0001** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.8950 / 0.9408
+    - normal min/max: -0.8125 / 0.8370
+    - normal norm mean/std: 0.5485 / 0.0926
+    - frame-to-frame mean L2 disp: 0.02538
+    - endpoint disp: 0.21368
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0001/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0001/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0001/control_config.json` (exists: True)
+  - **sample_0002** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.7321 / 0.9222
+    - normal min/max: -1.0330 / 0.9568
+    - normal norm mean/std: 0.5430 / 0.1094
+    - frame-to-frame mean L2 disp: 0.02672
+    - endpoint disp: 0.22060
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0002/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0002/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0002/control_config.json` (exists: True)
+  - **sample_0003** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -1.0006 / 0.8939
+    - normal min/max: -0.9675 / 1.0406
+    - normal norm mean/std: 0.6683 / 0.0777
+    - frame-to-frame mean L2 disp: 0.02213
+    - endpoint disp: 0.19111
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0003/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0003/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0003/control_config.json` (exists: True)
+  - **sample_0004** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.9786 / 0.8734
+    - normal min/max: -0.8680 / 0.8715
+    - normal norm mean/std: 0.5933 / 0.0693
+    - frame-to-frame mean L2 disp: 0.02390
+    - endpoint disp: 0.20581
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0004/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0004/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0004/control_config.json` (exists: True)
+  - **sample_0005** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.9810 / 0.8734
+    - normal min/max: -0.8680 / 0.8715
+    - normal norm mean/std: 0.5999 / 0.0715
+    - frame-to-frame mean L2 disp: 0.02461
+    - endpoint disp: 0.20581
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0005/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0005/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0005/control_config.json` (exists: True)
+  - **sample_0006** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.8909 / 0.8526
+    - normal min/max: -0.8204 / 0.8385
+    - normal norm mean/std: 0.5720 / 0.0948
+    - frame-to-frame mean L2 disp: 0.02169
+    - endpoint disp: 0.18198
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0006/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0006/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0006/control_config.json` (exists: True)
+  - **sample_0007** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.9406 / 0.8587
+    - normal min/max: -0.9375 / 0.9393
+    - normal norm mean/std: 0.5711 / 0.0899
+    - frame-to-frame mean L2 disp: 0.02818
+    - endpoint disp: 0.22190
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0007/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0007/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0007/control_config.json` (exists: True)
+  - **sample_0008** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.9427 / 0.7719
+    - normal min/max: -0.8744 / 0.9249
+    - normal norm mean/std: 0.6220 / 0.0776
+    - frame-to-frame mean L2 disp: 0.03678
+    - endpoint disp: 0.30375
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0008/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0008/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0008/control_config.json` (exists: True)
+  - **sample_0009** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.9406 / 0.8470
+    - normal min/max: -0.9375 / 0.9393
+    - normal norm mean/std: 0.5988 / 0.0815
+    - frame-to-frame mean L2 disp: 0.02010
+    - endpoint disp: 0.17020
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0009/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0009/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0009/control_config.json` (exists: True)
+  - **sample_0010** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.8327 / 0.8762
+    - normal min/max: -0.8079 / 0.8114
+    - normal norm mean/std: 0.6300 / 0.0764
+    - frame-to-frame mean L2 disp: 0.02650
+    - endpoint disp: 0.22929
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0010/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0010/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0010/control_config.json` (exists: True)
+  - **sample_0011** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.8327 / 0.8851
+    - normal min/max: -0.8379 / 0.8160
+    - normal norm mean/std: 0.6234 / 0.0795
+    - frame-to-frame mean L2 disp: 0.03437
+    - endpoint disp: 0.29761
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0011/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0011/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0011/control_config.json` (exists: True)
+  - **sample_0012** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.9432 / 0.9179
+    - normal min/max: -0.9229 / 0.9146
+    - normal norm mean/std: 0.5863 / 0.1121
+    - frame-to-frame mean L2 disp: 0.02970
+    - endpoint disp: 0.24714
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0012/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0012/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0012/control_config.json` (exists: True)
+  - **sample_0013** | frames=10 shapes_ok=True finite_ok=True
+    - xyz min/max: -0.8121 / 0.8255
+    - normal min/max: -0.8972 / 0.9073
+    - normal norm mean/std: 0.5935 / 0.0926
+    - frame-to-frame mean L2 disp: 0.03773
+    - endpoint disp: 0.31968
+    - preview: `outputs/controlled_samples_full_32_50k/sample_0013/preview.png` (exists: True)
+    - animation: `outputs/controlled_samples_full_32_50k/sample_0013/animation.gif` (exists: True)
+    - control_config: `outputs/controlled_samples_full_32_50k/sample_0013/control_config.json` (exists: True)
+
+## Notes and limitations
+- This is a controlled synthetic shape-transformation latent video DDPM. It is trained on synthetic deformations of real point clouds. No physical realism is claimed and no scientific validity for any specific material system is implied.
+- Quantitative metrics above (xyz/normal ranges, normal-norm statistics, frame-to-frame and endpoint L2 displacements) are sanity checks, not validation.
+- The pipeline preserves the exact start and end latent frames; all middle frames are generated by the control-conditioned DDPM.
